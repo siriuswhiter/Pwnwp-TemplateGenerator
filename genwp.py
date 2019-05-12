@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from pwn import *
 from sys import *
 import os,stat,re
