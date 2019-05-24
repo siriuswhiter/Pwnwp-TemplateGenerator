@@ -61,7 +61,7 @@ def init(desname):
 
 	lolibc,relibc=findlibc(desname)
 	s=["#!/usr/bin/env python2\n",
-	"#coding = utf8\n\n",
+	"# -*- coding:utf-8 -*-\n\n",
 	"import sys\n",
 	"from pwn import *\n\n",
 	"#context.log_level = 'debug'\n",
