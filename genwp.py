@@ -30,6 +30,14 @@ def mknew(desname):
 		os.mknod(desname)
 		os.system("chmod 777 "+desname)
 #		os.chmod(desname,stat.S_IXGRP)
+	else:
+		print 'File has exists ; Wanna cover it?(y/n)'
+		#a = raw_input()
+		if raw_input()[0] == 'y':
+			pass
+		else:
+			print 'bye~'
+			exit(0)
 
 def findlolibc(desname):
 	s="ldd "+name
