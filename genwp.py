@@ -5,14 +5,14 @@ from sys import *
 import os,stat,re
 import difflib
 
-nowPath = sys.path[0]
+pwd = sys.path[0]
 if len(argv)>1:
 	if argv[1]=="-h":
                 print "#such as: python genwp.py filename -l >> /dev/null#"
 		exit(0)
 	name = argv[1]
 	flag = False
-	for fi in os.listdir(nowPath):
+	for fi in os.listdir(pwd):
 		if fi==name:
 			flag=True
 			break
@@ -25,11 +25,11 @@ else:
 	print "#such as: python genwp.py filename -l >> /dev/null    #"
 	exit(0)	
 
-def mknew(desname):
-	if not os.path.exists(desname):
-		os.mknod(desname)
-		os.system("chmod 777 "+desname)
-#		os.chmod(desname,stat.S_IXGRP)
+def mk_new_file(WpName):
+	if not os.path.exists(WpName):
+		os.mknod(WpName)
+		os.system("chmod 777 "+WpName)
+#		os.chmod(WpName,stat.S_IXGRP)
 	else:
 		print 'File has exists ; Wanna cover it?(y/n)'
 		#a = raw_input()
@@ -39,7 +39,7 @@ def mknew(desname):
 			print 'bye~'
 			exit(0)
 
-def findlolibc(desname):
+def find_local_libc(WpName):
 	s="ldd "+name
 	result=os.popen(s,'r')#.recvuntil("libc.so.6 => ")
 	r=result.read()
@@ -50,24 +50,27 @@ def findlolibc(desname):
 			return data[2]
 						
 
-def findrelibc():
-	for li in os.listdir(nowPath):
+def find_remote_libc():
+	for li in os.listdir(pwd):
 		if "libc" in li:
 			return li	
 
 	return ""
 
-def findlibc(desname):
-	lolibc=findlolibc(desname)
-        relibc=findrelibc()
+def find_libc(WpName):
+	lolibc=find_local_libc(WpName)
+        relibc=find_remote_libc()
 	return lolibc,relibc
 
-def init(desname):
+def __init_not_arm(WpName,link):
 	global des
-	des=open(desname,'w')
+	des=open(WpName,'w')
         des.truncate()             # clear file
-
-	lolibc,relibc=findlibc(desname)
+	if link:
+		lolibc,relibc=find_libc(WpName)
+	else:
+		lolibc,relibc="",""
+	
 	s=["#!/usr/bin/env python2\n",
 	"# -*- coding:utf-8 -*-\n\n",
 	"import sys\n",
@@ -79,12 +82,12 @@ def init(desname):
 	"else:\n",
 	"	local = 1\n\n",
 	"if local:\n",
-	"	sh = process('"+name+"')\n",
-	"	elf = ELF('"+name+"')\n",
-        "	libc = ELF('"+lolibc+"')\n",
+	"	sh = process('./"+name+"')\n",
+	"	elf = ELF('./"+name+"')\n",
+    "	libc = ELF('"+lolibc+"')\n",
 	"else:\n",
 	"	sh = remote('','')\n",
-	"	elf = ELF('"+name+"')\n"
+	"	elf = ELF('./"+name+"')\n"
 	]
 	des.writelines(s)
 	if relibc:
@@ -96,18 +99,46 @@ def init(desname):
 
 	des.writelines(s)
 
+def __init_arm(WpName,link):
+	global des
+	des=open(WpName,'w')
+        des.truncate()           
+	if link:
+		libc = "	libc = ELF('/usr/arm-linux-gnueabi/lib/libc.so.6')\n"
+	else:
+		libc = ""
 
-def getmenu():
-	tmp = process(nowPath+'/'+name)
+	s = [
+		"from pwn import *\n",
+		"import sys\n",
+		"context.binary = '"+name+"'\n\n",
+
+		"if len(sys.argv) > 1:\n",
+		"	local = 0\n",
+		"else:\n",
+		"	local = 1\n\n",
+		"if local:\n",
+		"	sh = process(['qemu-arm', '-L', '/usr/arm-linux-gnueabi', '"+name+"'])\n",
+		"	elf = ELF('./"+name+"')\n",
+		libc,
+		"else:\n",
+		"	sh = remote('','')\n",
+		"	elf = ELF('./"+name+"')\n"
+	]
+	des.writelines(s)
+
+
+def get_menu():
+	tmp = process(pwd+'/'+name)
 	r = tmp.recv()
 	tmp.close()
 	return r
 	
 
-def findfunc(funcname):
-	io = process(nowPath+'/'+name)
+def find_func(funcname):
+	io = process(pwd+'/'+name)
 	ser = re.compile(funcname,re.IGNORECASE)
-	r = getmenu().split('\n')
+	r = get_menu().split('\n')
 	for line in r:
 		if re.search(ser,line):
 			idx=re.findall('\d+',line)
@@ -118,7 +149,7 @@ def findfunc(funcname):
 	return ""
 	
 
-def buildfunc(idx,funcname):
+def build_func(idx,funcname):
 	s = ["def "+funcname+"():\n",
 	"	sh.sendline('"+idx+"')\n"]
 	des.writelines(s)
@@ -127,12 +158,12 @@ def buildfunc(idx,funcname):
 	
 	for i in range(len(check2)):
                 for j in range (len(check2[i])):
-			io = process(nowPath+'/'+name)
+			io = process(pwd+'/'+name)
 			io.recv()
 			io.sendline(str(idx))
 			r = io.recv()
 			ser = re.compile(check2[i][j],re.IGNORECASE)
-			if getmenu() in r:
+			if get_menu() in r:
 				break
 			elif re.search(ser,r):
 				s = [
@@ -141,7 +172,7 @@ def buildfunc(idx,funcname):
 				if i != 2:
 					io.sendline('0')
 					r = io.recv()
-					if difflib.SequenceMatcher(None, getmenu(), r).quick_ratio()>0.6:
+					if difflib.SequenceMatcher(None, get_menu(), r).quick_ratio()>0.6:
 						des.writelines(["\n\n"])
                                 		break
 					else:
@@ -154,7 +185,7 @@ def buildfunc(idx,funcname):
 	io.close()
 
 
-def buildAllFunc():
+def build_all_func():
 	check=[['add','alloc','new'],
 	['edit','fill','change'],
 	['show','put','read','dump','list','print'],
@@ -163,18 +194,40 @@ def buildAllFunc():
 	for i in range(len(check)):
                 for j in range (len(check[i])):
                         funcname = check[i][j]
-                        idx = findfunc(funcname)
+                        idx = find_func(funcname)
                         if idx!="":
-                                buildfunc(idx,funcname)
+                                build_func(idx,funcname)
                                 break
 
-		
+
+#diff as Arm && not_Arm (True) ,statically && dynamically (True)
+def check_file_type():
+        s="file "+name
+        result=os.popen(s,'r')#.recvuntil("libc.so.6 => ")
+        r=result.read()
+        if 'Arm' in r:
+            if 'statically linked' in r:
+                return False,False
+            else:
+                return False,True
+        else:
+            if 'dynamically linked' in r:
+                return True,False
+            else:
+                return True,False
+
+
 def main():
-	desname=name+'wp.py'
-	mknew(desname)
-	init(desname)
+	WpName=name+'wp.py'
+	mk_new_file(WpName)
+        types , link = check_file_type()
+        if(link):
+            __init_not_arm(WpName,link)
+        else:
+			__init_arm(WpName,link)
+
 	if len(argv)>2 and argv[2]=="-l":
-		buildAllFunc()
+		build_all_func()
 	des.writelines(["sh.interactive()"])
 	des.close()
 	
