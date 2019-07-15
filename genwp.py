@@ -212,7 +212,7 @@ def check_file_type():
                 return False,True
         else:
             if 'dynamically linked' in r:
-                return True,False
+                return True,True
             else:
                 return True,False
 
