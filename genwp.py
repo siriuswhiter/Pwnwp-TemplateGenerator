@@ -221,10 +221,10 @@ def main():
 	WpName=name+'wp.py'
 	mk_new_file(WpName)
         types , link = check_file_type()
-        if(link):
+        if types:
             __init_not_arm(WpName,link)
         else:
-			__init_arm(WpName,link)
+	    __init_arm(WpName,link)
 
 	if len(argv)>2 and argv[2]=="-l":
 		build_all_func()
